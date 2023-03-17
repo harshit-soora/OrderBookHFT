@@ -7,7 +7,7 @@ OrderManagement::OrderManagement() {
     Exchange::OnDataCallback callback = [this](OrderResponse&& response) {
         this->onData(std::move(response));
     };
-    m_threadDurationInMs = 10000; // testing purpose; will run the system for 10 sec
+    m_threadDurationInMs = 20000; // testing purpose; will run the system for 20 sec
     m_exchangeObj = new Exchange(callback);
     m_bufferSize = 0;
     m_exchangeThrottle = 100;
@@ -64,7 +64,7 @@ void OrderManagement::add(orderNode* root) {
     }
 }
 
-void OrderManagement::cancel(orderNode* root) {
+void OrderManagement::cancelRequest(orderNode* root) {
     orderNode* left = root->prev;
     orderNode* right = root->next;
 
@@ -87,6 +87,28 @@ void OrderManagement::cancel(orderNode* root) {
     {
         m_bufferQueueHead = nullptr;
         m_bufferQueueTail = nullptr;
+    }
+
+    delete root;
+}
+
+// Only difference here is we don't want to manipulate the head and tail pointers
+void OrderManagement::cancelResponse(orderNode* root) {
+    orderNode* left = root->prev;
+    orderNode* right = root->next;
+
+    if(left && right)
+    {
+        left->next = right;
+        right->prev = left;
+    }
+    else if(left)
+    {
+        left->next = nullptr;
+    }
+    else if(right)
+    {
+        right->prev = nullptr;
     }
 
     delete root;
@@ -144,7 +166,7 @@ void OrderManagement::onData(OrderRequest&& request, RequestType type) {
             if(curr->status == orderStatus::Exchange)
                 return;
 
-            cancel(curr);
+            cancelRequest(curr);
             m_orderHash.erase(m_orderHash.find(request.m_orderId));
             m_bufferSize--;
         }
@@ -160,8 +182,16 @@ void OrderManagement::onData(OrderResponse&& response) {
     }
 
     // No need to acquire lock as these values are not edited with the client orders
-    orderNode* curr = m_orderHash[response.m_orderId];
-    cancel(curr);
+    if(m_orderHash.count(response.m_orderId)) {
+        orderNode* curr = m_orderHash[response.m_orderId];
+
+        // If order is not send to the exchange, then drop the response
+        if(curr->status == orderStatus::Buffering)
+            return;
+
+        cancelResponse(curr);
+        m_orderHash.erase(m_orderHash.find(response.m_orderId));
+    }
 
     if(response.m_responseType == ResponseType::Accept)
     {
@@ -229,7 +259,7 @@ void OrderManagement::exchangeThread()
         // If we exit early from second complete, then will wait till the current second elapse
         endTime = std::chrono::system_clock::now();
         millis = std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count();
-        std::cout << "Waiting for " << 1000- millis%1000 << " before the throttle reset from next second" << std::endl;
+        std::cout << "Waiting for " << 1000- millis%1000 << " ms before the throttle reset from next second" << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(1000 - millis % 1000));
     }
     std::cout << "Exchange thread have exited." << std::endl;

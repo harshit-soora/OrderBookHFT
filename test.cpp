@@ -19,7 +19,7 @@ void generateRandomOrder()
     char side = 'B';
     if(rand() % 2 == 1)
         side = 'S';
-    uint64_t orderId = m_orderIdList[rand()%100]; // So we got chances to reuse the same orderid for modify/cancel
+    uint64_t orderId = m_orderIdList[rand()%1000]; // So we got chances to reuse the same orderid for modify/cancel
 
     int orderType = rand() % 3 + 1;
     OrderRequest req = OrderRequest(symbol, price, qty, side, orderId);
@@ -76,8 +76,8 @@ void burstTest()
 int main()
 {
     m_obj = new OrderManagement();
-    m_orderIdList.resize(100);
-    for(uint64_t i=0;i<100;i++)
+    m_orderIdList.resize(1000);
+    for(uint64_t i=0;i<1000;i++)
     {
         m_orderIdList[i] = i;
     }//We will send orderid from a pool of 100 ids to do the burst test 

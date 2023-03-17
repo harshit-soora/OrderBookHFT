@@ -44,7 +44,8 @@ public:
 private:
     void exchangeThread();
     void add(orderNode* root);
-    void cancel(orderNode* root);
+    void cancelRequest(orderNode* root);
+    void cancelResponse(orderNode* root);
 
     orderNode* m_bufferQueueHead; // double linked list for order-buffer, act as a queue for the exchange
     orderNode* m_bufferQueueTail;
