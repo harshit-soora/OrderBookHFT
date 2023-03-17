@@ -40,19 +40,6 @@ void OrderManagement::add(orderNode* root) {
         root->prev = m_bufferQueueTail;
         m_bufferQueueTail = root;
     }
-    else if(m_bufferQueueHead)
-    {
-        //should not hit this in general, but will require O(n) execution to get tail
-        m_bufferQueueTail = m_bufferQueueHead;
-        while(m_bufferQueueTail!=nullptr)
-        {
-            m_bufferQueueTail = m_bufferQueueTail->next;
-        }
-
-        m_bufferQueueTail->next = root;
-        root->prev = m_bufferQueueTail;
-        m_bufferQueueTail = root;
-    }
     else
     {
         m_bufferQueueTail = root;
@@ -258,9 +245,24 @@ void OrderManagement::exchangeThread()
                 else {
                     if(printThrottle) {
                         printThrottle--;
-                        std::cout << "Hit extreme case of head being null while buffer size is " << m_bufferSize << std::endl;
+                        std::cout << "Extreme case of head null while buffer size is " << m_bufferSize << std::endl;
                     }
-                    m_bufferSize=0;
+                    
+                    orderNode* last = m_bufferQueueTail;
+                    m_bufferQueueHead = m_bufferQueueTail;
+                    m_bufferSize = 0;
+                    while(m_bufferQueueHead != nullptr)
+                    {
+                        if(m_bufferQueueHead->status==orderStatus::Exchange)
+                            break;
+                        m_bufferSize ++;
+
+                        last = m_bufferQueueHead;
+                        m_bufferQueueHead = m_bufferQueueHead->prev;
+                    }
+                    m_bufferQueueHead = last;
+
+                    std::cout << "Head restored, new buffer size " << m_bufferSize << std::endl;
                 }
             }
 
