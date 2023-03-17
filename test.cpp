@@ -57,7 +57,7 @@ void burstTest()
         }
 
         if(flag == 1)
-        {
+        {//Burst
             while(count--)
             {
                 generateRandomOrder();

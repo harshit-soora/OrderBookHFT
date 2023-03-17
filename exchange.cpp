@@ -23,6 +23,11 @@ class Exchange
         void processOrder(const OrderRequest& request)
         {
             int type = rand() % 3;
+
+            if(type == 0)
+            {
+                type = rand() % 3; // Making chances of getting Unknown less ie. 1/9
+            }
             OrderResponse res(request.m_orderId, type);
 
             if(!printFirst)

@@ -175,12 +175,6 @@ void OrderManagement::onData(OrderRequest&& request, RequestType type) {
 }
 
 void OrderManagement::onData(OrderResponse&& response) {
-    if(response.m_responseType == ResponseType::Unknown)
-    {
-        std::cout << "Unknown response type for order - " << response.m_orderId << std::endl;
-        return; //Ignore and drop the request
-    }
-
     // No need to acquire lock as these values are not edited with the client orders
     if(m_orderHash.count(response.m_orderId)) {
         orderNode* curr = m_orderHash[response.m_orderId];
@@ -193,7 +187,11 @@ void OrderManagement::onData(OrderResponse&& response) {
         m_orderHash.erase(m_orderHash.find(response.m_orderId));
     }
 
-    if(response.m_responseType == ResponseType::Accept)
+    if(response.m_responseType == ResponseType::Unknown)
+    {
+        std::cout << "Unknown response type for order - " << response.m_orderId << std::endl;
+    }
+    else if(response.m_responseType == ResponseType::Accept)
     {
         std::cout << "Accepted order - " << response.m_orderId << std::endl;
     }
@@ -214,6 +212,7 @@ void OrderManagement::exchangeThread()
     auto threadStartTime = startTime;
     auto endTime = std::chrono::system_clock::now();
     auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count();
+    int printThrottle = 10;
 
     std::cout << "Exchange thread have started." << std::endl;
     while(m_bexitPending)
@@ -236,11 +235,21 @@ void OrderManagement::exchangeThread()
             if(m_bufferSize > 0)
             {
                 //Get head -> send it -> move head -> decrease counter
-                m_bufferQueueHead->status = orderStatus::Exchange;
-                send(m_bufferQueueHead->order);
-                m_bufferQueueHead = m_bufferQueueHead->next; //One issue, head now may point null, will handle in onData()
-                m_bufferSize--;
-                orderExecuted++;
+                if(m_bufferQueueHead!=nullptr)
+                {
+                    m_bufferQueueHead->status = orderStatus::Exchange;
+                    send(m_bufferQueueHead->order);
+                    m_bufferQueueHead = m_bufferQueueHead->next; //One issue, head now may point null, will handle in onData()
+                    m_bufferSize--;
+                    orderExecuted++;
+                }
+                else {
+                    if(printThrottle) {
+                        printThrottle--;
+                        std::cout << "Hit extreme case of head being null while buffer size is " << m_bufferSize << std::endl;
+                    }
+                    m_bufferSize=0;
+                }
             }
 
             autoLock.unlock();
