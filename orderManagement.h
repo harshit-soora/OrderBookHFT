@@ -2,6 +2,7 @@
 #include <map>
 #include <mutex>
 
+
 class OrderManagement
 {
 public:
@@ -51,6 +52,7 @@ private:
     orderNode* m_bufferQueueTail;
     std::map<uint64_t, orderNode*> m_orderHash; // help to identify if a order is inside the orderQueue, if exist then point to the root
     
+    std::ofstream m_log;
     uint32_t m_threadDurationInMs;
     Exchange* m_exchangeObj;
     std::unique_ptr<std::thread> m_exchangeThread;

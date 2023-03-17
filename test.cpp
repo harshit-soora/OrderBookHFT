@@ -44,20 +44,20 @@ void generateRandomOrder()
 void burstTest()
 {
     int limitOrder = 1000;
+    int burst = 10; // maximum bursts
     int count = 0;
     int flag = 0; // To switch between burst mode{1} and non burst mode{0}
     
     std::cout << "[Test] Start sending burst orders" << std::endl;
     while(limitOrder>0)
     {
-        if(count==0)
-        {
-            flag = rand() % 2;
-            count = rand() % 100;
-        }
+        flag = rand() % 2;
+        count = rand() % 100;
 
-        if(flag == 1)
+        if(flag == 1 && burst>0)
         {//Burst
+            burst--;
+            std::cout << "[Test] Burst round of " << count << " orders" << std::endl;
             while(count--)
             {
                 generateRandomOrder();
@@ -80,6 +80,8 @@ int main()
     for(uint64_t i=0;i<1000;i++)
     {
         m_orderIdList[i] = i;
-    }//We will send orderid from a pool of 100 ids to do the burst test 
+    }//We will send orderid from a pool of 1000 ids to do the burst test 
     burstTest();
+
+    return 0;
 }

@@ -2,6 +2,7 @@
 #include <chrono>
 #include <thread>
 #include <iostream>
+#include <fstream>
 
 struct Logon
 {
@@ -87,12 +88,14 @@ typedef struct orderNode
 {
     struct OrderRequest order;
     orderStatus status;
+    std::chrono::time_point<std::chrono::system_clock> ts;
     orderNode* next;
     orderNode* prev;
 
     orderNode(OrderRequest&& req) : order(std::move(req))
     {
         status = orderStatus::Buffering;
+        ts = std::chrono::system_clock::now();
         next = nullptr;
         prev = nullptr;
     }

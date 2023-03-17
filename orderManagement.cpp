@@ -1,13 +1,17 @@
 #include "orderManagement.h"
 
+
 OrderManagement::OrderManagement() {
+    const std::string fileName = "test_output.txt";
+    m_log.open(fileName);
+
     m_bufferQueueHead = nullptr;
     m_bufferQueueTail = nullptr;
 
     Exchange::OnDataCallback callback = [this](OrderResponse&& response) {
         this->onData(std::move(response));
     };
-    m_threadDurationInMs = 20000; // testing purpose; will run the system for 20 sec
+    m_threadDurationInMs = 10000; // testing purpose; will run the system for 10 sec
     m_exchangeObj = new Exchange(callback);
     m_bufferSize = 0;
     m_exchangeThrottle = 100;
@@ -27,8 +31,6 @@ void OrderManagement::add(orderNode* root) {
         m_bufferQueueTail->next = root;
         root->prev = m_bufferQueueTail;
         m_bufferQueueTail = root;
-
-        m_bufferSize++;
     }
     else if(m_bufferQueueTail)
     {
@@ -37,8 +39,6 @@ void OrderManagement::add(orderNode* root) {
         m_bufferQueueTail->next = root;
         root->prev = m_bufferQueueTail;
         m_bufferQueueTail = root;
-
-        m_bufferSize++;
     }
     else if(m_bufferQueueHead)
     {
@@ -52,15 +52,11 @@ void OrderManagement::add(orderNode* root) {
         m_bufferQueueTail->next = root;
         root->prev = m_bufferQueueTail;
         m_bufferQueueTail = root;
-
-        m_bufferSize++;
     }
     else
     {
         m_bufferQueueTail = root;
         m_bufferQueueHead = root;
-
-        m_bufferSize++;
     }
 }
 
@@ -129,6 +125,7 @@ void OrderManagement::onData(OrderRequest&& request, RequestType type) {
     {
         orderNode* curr = new orderNode(std::move(request));
         m_orderHash[request.m_orderId] = curr;
+        m_bufferSize ++;
         add(curr);
     }
     else if(type == RequestType::Modify)
@@ -168,13 +165,16 @@ void OrderManagement::onData(OrderRequest&& request, RequestType type) {
 
             cancelRequest(curr);
             m_orderHash.erase(m_orderHash.find(request.m_orderId));
-            m_bufferSize--;
+            if(m_bufferSize > 0) // may end up with a large number since it is unsigned
+                m_bufferSize--;
         }
         // else drop the request as no order exist to be cancelled
     }
 }
 
 void OrderManagement::onData(OrderResponse&& response) {
+    auto endTime = std::chrono::system_clock::now();
+
     // No need to acquire lock as these values are not edited with the client orders
     if(m_orderHash.count(response.m_orderId)) {
         orderNode* curr = m_orderHash[response.m_orderId];
@@ -183,21 +183,33 @@ void OrderManagement::onData(OrderResponse&& response) {
         if(curr->status == orderStatus::Buffering)
             return;
 
+        if(response.m_responseType == ResponseType::Accept)
+        {
+            m_log << "Accepted order - ";
+            m_log << response.m_orderId;
+            m_log << " round trip delay (in ms) ";
+            m_log << std::chrono::duration_cast<std::chrono::milliseconds>(endTime-curr->ts).count();
+            m_log << "\n";
+        }
+        else if(response.m_responseType == ResponseType::Reject)
+        {
+            m_log << "Rejected order - ";
+            m_log << response.m_orderId;
+            m_log << " round trip delay (in ms) ";
+            m_log << std::chrono::duration_cast<std::chrono::milliseconds>(endTime-curr->ts).count();
+            m_log << "\n";
+        }
+        else
+        {
+            m_log << "Unknown response type for order - ";
+            m_log << response.m_orderId;
+            m_log << " round trip delay (in ms) ";
+            m_log << std::chrono::duration_cast<std::chrono::milliseconds>(endTime-curr->ts).count();
+            m_log << "\n";
+        }
+
         cancelResponse(curr);
         m_orderHash.erase(m_orderHash.find(response.m_orderId));
-    }
-
-    if(response.m_responseType == ResponseType::Unknown)
-    {
-        std::cout << "Unknown response type for order - " << response.m_orderId << std::endl;
-    }
-    else if(response.m_responseType == ResponseType::Accept)
-    {
-        std::cout << "Accepted order - " << response.m_orderId << std::endl;
-    }
-    else
-    {
-        std::cout << "Rejected order - " << response.m_orderId << std::endl;
     }
 } 
 
@@ -268,10 +280,13 @@ void OrderManagement::exchangeThread()
         // If we exit early from second complete, then will wait till the current second elapse
         endTime = std::chrono::system_clock::now();
         millis = std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count();
-        std::cout << "Waiting for " << 1000- millis%1000 << " ms before the throttle reset from next second" << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000 - millis % 1000));
+
+        if(millis%1000 != 0) {
+            std::cout << "Waiting for " << 1000- millis%1000 << " ms before the throttle reset from next second" << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000 - millis % 1000));
+        }
     }
-    std::cout << "Exchange thread have exited." << std::endl;
+    std::cout << "Exchange thread have exited. Open test_output to see the round trip delay" << std::endl;
 }
 
 void OrderManagement::sendLogon() {
@@ -304,5 +319,6 @@ OrderManagement::~OrderManagement() {
     m_bufferSize = 0;
     m_exchangeThrottle = 100;
 
-    m_orderHash.clear();   
+    m_orderHash.clear();
+    m_log.close();
 }
